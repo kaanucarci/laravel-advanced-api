@@ -49,7 +49,8 @@ class AuthController extends Controller
         {
             if (password_verify($request->password, $user->first()->password))
             {
-                $tokenInfo = $user->first()->createToken('authToken');
+                $credentials = $request->only('email', 'password');
+                $tokenInfo = $user->first()->createToken(implode(',', $credentials));
                 $tokenInfo->accessToken->expires_at = now()->addHours(2);
                 $tokenInfo->accessToken->save();
 

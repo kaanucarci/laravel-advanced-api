@@ -1,15 +1,9 @@
 <?php
 
-use App\Http\Controllers\Auth\AuthController;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
+require __DIR__.'/api/user.php';
+require __DIR__.'/api/product.php';
 
 
-Route::post('/user/register', [AuthController::class, 'register'])->name('user.register');
-Route::post('/user/login', [AuthController::class, 'login'])->name('user.login');
 
 
-Route::group(['middleware' => ['auth:sanctum']], function() {
-    Route::get('/user/me', [AuthController::class, 'me'])->name('user.me');
-    Route::post('/user/logout', [AuthController::class, 'logout'])->name('user.logout');
-});
+
