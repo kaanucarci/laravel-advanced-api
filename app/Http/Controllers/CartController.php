@@ -21,7 +21,19 @@ class CartController extends Controller
     }
 
     /**
-     * Display a listing of the cart.
+     * @OA\Get(
+     *     path="/cart",
+     *     tags={"Cart"},
+     *     summary="Get cart info",
+     *     security={{"sanctum":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Returns the cart",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="data", type="object")
+     *         )
+     *     )
+     * )
      */
     public function index()
     {
@@ -30,6 +42,37 @@ class CartController extends Controller
         return response()->json(['data' => $cart]);
     }
 
+    /**
+     * @OA\Get(
+     *     path="/cart/items",
+     *     tags={"Cart"},
+     *     summary="Get items in the cart",
+     *     security={{"sanctum":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="List of cart items",
+     *         @OA\JsonContent(
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="array",
+     *                 @OA\Items(
+     *                     type="object",
+     *                     @OA\Property(property="id", type="integer"),
+     *                     @OA\Property(property="product_id", type="integer"),
+     *                     @OA\Property(property="quantity", type="integer"),
+     *                     @OA\Property(
+     *                         property="product",
+     *                         type="object",
+     *                         @OA\Property(property="name", type="string"),
+     *                         @OA\Property(property="price", type="number", format="float"),
+     *                         @OA\Property(property="stock", type="integer")
+     *                     )
+     *                 )
+     *             )
+     *         )
+     *     )
+     * )
+     */
     public function cart_items()
     {
         $cacheKey = $this->cache_key;
@@ -54,7 +97,49 @@ class CartController extends Controller
     }
 
     /**
-     * Update the specified cart in storage.
+     * @OA\Put(
+     *     path="/cart/update",
+     *     tags={"Cart"},
+     *     summary="Add or update product in cart",
+     *     security={{"sanctum":{}}},
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"product_id", "quantity"},
+     *             @OA\Property(property="product_id", type="integer", example=1),
+     *             @OA\Property(property="quantity", type="integer", example=2)
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Cart updated successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Card updated successfully"),
+     *             @OA\Property(
+     *                 property="data",
+     *                 type="array",
+     *                 @OA\Items(
+     *                     type="object",
+     *                     @OA\Property(property="product_id", type="integer"),
+     *                     @OA\Property(property="quantity", type="integer"),
+     *                     @OA\Property(
+     *                         property="product",
+     *                         type="object",
+     *                         @OA\Property(property="name", type="string"),
+     *                         @OA\Property(property="price", type="number", format="float")
+     *                     )
+     *                 )
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=400,
+     *         description="Invalid input or stock limit exceeded",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string")
+     *         )
+     *     )
+     * )
      */
     public function update(Request $request)
     {
