@@ -76,6 +76,9 @@ class CartController extends Controller
         }
         //If not add product to cart
         else {
+            if ($request->quantity <= 0)
+                return response()->json(['message' => 'Product never added before, quantity must be greater than zero!'], 400);
+
             $product = Product::find($request->product_id);
             if ($product->stock >= $request->quantity)
             {
@@ -87,7 +90,6 @@ class CartController extends Controller
             }
             else
                 return response()->json(['message' => 'Stock limit exceeded'], 400);
-
         }
 
         $cartItems = CartItem::with('product')
