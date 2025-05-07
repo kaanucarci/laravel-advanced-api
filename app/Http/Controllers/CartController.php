@@ -1,0 +1,113 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Cart;
+use App\Models\CartItem;
+use App\Models\Product;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+
+class CartController extends Controller
+{
+    protected $user_id;
+
+    public function __construct()
+    {
+        $this->user_id = auth()->id();
+    }
+
+    /**
+     * Display a listing of the cart.
+     */
+    public function index()
+    {
+
+        $cart = $this->get_cart();
+        return response()->json(['data' => $cart]);
+    }
+
+    public function cart_items()
+    {
+
+        $cart = $this->get_cart();
+
+        $cartItems = CartItem::with('product')
+            ->where('cart_id', $cart->id)
+            ->get();
+
+        return response()->json(['data' => $cartItems]);
+    }
+
+    /**
+     * Update the specified cart in storage.
+     */
+    public function update(Request $request)
+    {
+        //Validate
+        $validator = Validator::make($request->all(), [
+            'product_id' => 'required|integer|exists:products,id',
+            'quantity' => 'required|integer',
+        ]);
+
+        if ($validator->fails())
+            return response()->json(['message' => $validator->errors()->first(), 400]);
+        //Validate Ends
+
+
+        $cart = $this->get_cart();
+
+        //Checking if product added to cart before
+        $cartItem = CartItem::with('product')
+            ->where('cart_id', $cart->id)
+            ->where('product_id', $request->product_id)
+            ->first();
+
+        //If the product has been added before, just update the quantity but only if the stock is enough
+        if ($cartItem)
+        {
+            if ($cartItem->product->stock > $cartItem->quantity + $request->quantity)
+            {
+                $cartItem->quantity += $request->quantity;
+                $cartItem->save();
+            }
+            else
+                return response()->json(['message' => 'Stock limit exceeded'], 400);
+        }
+        //If not add product to cart
+        else {
+            $product = Product::find($request->product_id);
+            if ($product->stock >= $request->quantity)
+            {
+                CartItem::create([
+                    'cart_id' => $cart->id,
+                    'quantity' => $request->quantity,
+                    'product_id' => $request->product_id,
+                ]);
+            }
+            else
+                return response()->json(['message' => 'Stock limit exceeded'], 400);
+
+        }
+
+        $cartItems = CartItem::with('product')
+            ->where('cart_id', $cart->id)
+            ->get();
+
+        return response()->json([
+            'message' => 'Card updated successfully',
+            'data' => $cartItems
+        ]);
+    }
+
+    private function get_cart()
+    {
+        return Cart::where('user_id', $this->user_id)
+            ->where('status', 'active')
+            ->latest()
+            ->firstOrCreate([
+                'user_id' => $this->user_id,
+            ]);
+    }
+
+}
