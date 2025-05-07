@@ -6,15 +6,18 @@ use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 
 class CartController extends Controller
 {
     protected $user_id;
+    protected $cache_key;
 
     public function __construct()
     {
         $this->user_id = auth()->id();
+        $this->cache_key = 'cart_items_user_:' . $this->user_id;
     }
 
     /**
@@ -29,12 +32,23 @@ class CartController extends Controller
 
     public function cart_items()
     {
+        $cacheKey = $this->cache_key;
 
-        $cart = $this->get_cart();
+        if (Cache::has($cacheKey))
+        {
+           $cartItems = Cache::get($cacheKey);
+        }
+        else{
+            $cart = $this->get_cart();
 
-        $cartItems = CartItem::with('product')
-            ->where('cart_id', $cart->id)
-            ->get();
+            $cartItems = CartItem::with('product')
+                ->where('cart_id', $cart->id)
+                ->get();
+
+            Cache::put($cacheKey, $cartItems, now()->addMinutes(10));
+        }
+
+
 
         return response()->json(['data' => $cartItems]);
     }
@@ -44,6 +58,8 @@ class CartController extends Controller
      */
     public function update(Request $request)
     {
+        $cacheKey = $this->cache_key;
+
         //Validate
         $validator = Validator::make($request->all(), [
             'product_id' => 'required|integer|exists:products,id',
@@ -95,6 +111,9 @@ class CartController extends Controller
         $cartItems = CartItem::with('product')
             ->where('cart_id', $cart->id)
             ->get();
+
+        //Delete cache
+        Cache::forget($cacheKey);
 
         return response()->json([
             'message' => 'Card updated successfully',
