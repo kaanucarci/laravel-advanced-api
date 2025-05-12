@@ -144,6 +144,7 @@ class AuthController extends Controller
      *             @OA\Property(property="user", type="object")
      *         )
      *     ),
+     *
      *     @OA\Response(
      *         response=401,
      *         description="Unauthenticated"

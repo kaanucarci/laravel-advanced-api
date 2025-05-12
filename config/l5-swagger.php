@@ -169,6 +169,12 @@ return [
          * API security definitions. Will be generated into documentation file.
         */
         'securityDefinitions' => [
+            'sanctum' => [
+                'type' => 'apiKey',
+                'in' => 'header',
+                'name' => 'Authorization',
+                'description' => 'Enter token in format: Bearer {token}',
+            ],
             'securitySchemes' => [
                 /*
                  * Examples of Security schemes

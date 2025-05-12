@@ -247,6 +247,40 @@
                         "sanctum": []
                     }
                 ]
+            },
+            "delete": {
+                "tags": [
+                    "Cart"
+                ],
+                "summary": "Clear all items from the authenticated user's cart",
+                "description": "Deletes all items from the active cart of the currently authenticated user.",
+                "operationId": "f377929d0e996a1c3f953864f92433ce",
+                "responses": {
+                    "200": {
+                        "description": "Cart cleared successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Cart items have been cleared"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
             }
         },
         "/cart/items": {
@@ -397,6 +431,146 @@
                                 }
                             }
                         }
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/order": {
+            "get": {
+                "tags": [
+                    "Orders"
+                ],
+                "summary": "Get all orders for authenticated user",
+                "description": "Returns a list of orders with related product information. Requires authentication.",
+                "operationId": "0856cea0d3370eecc583e7f77b8b3495",
+                "responses": {
+                    "200": {
+                        "description": "Successful response. May return empty list.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer",
+                                                                "example": 1
+                                                            },
+                                                            "user_id": {
+                                                                "type": "integer",
+                                                                "example": 5
+                                                            },
+                                                            "product_id": {
+                                                                "type": "integer",
+                                                                "example": 2
+                                                            },
+                                                            "quantity": {
+                                                                "type": "integer",
+                                                                "example": 3
+                                                            },
+                                                            "product": {
+                                                                "type": "object",
+                                                                "example": {
+                                                                    "id": 2,
+                                                                    "title": "Wireless Mouse",
+                                                                    "price": 59.99
+                                                                }
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    }
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        {
+                                            "properties": {
+                                                "message": {
+                                                    "type": "string",
+                                                    "example": "No orders have been placed yet."
+                                                },
+                                                "data": {
+                                                    "type": "null"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Orders"
+                ],
+                "summary": "Place a new order",
+                "description": "Creates a new order for the authenticated user.",
+                "operationId": "7ba54becef4b6acf5e298e3b83936d12",
+                "responses": {
+                    "201": {
+                        "description": "Order created successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Order placed successfully."
+                                        },
+                                        "order": {
+                                            "type": "object",
+                                            "example": {
+                                                "id": 10,
+                                                "user_id": 1,
+                                                "cart_id": 3,
+                                                "status": "pending",
+                                                "created_at": "2025-05-06T12:34:56.000000Z"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error or empty cart",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Cart is empty."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
                     }
                 },
                 "security": [
@@ -656,8 +830,9 @@
     },
     "components": {
         "securitySchemes": {
-            "bearerAuth": {
-                "type": "http",
+            "sanctum": {
+                "type": "apiKey",
+                "description": "Enter token in format: Bearer {token}",
                 "name": "Authorization",
                 "in": "header",
                 "scheme": "bearer"
@@ -672,6 +847,10 @@
         {
             "name": "Cart",
             "description": "Cart"
+        },
+        {
+            "name": "Orders",
+            "description": "Orders"
         },
         {
             "name": "Products",

@@ -75,25 +75,9 @@ class CartController extends Controller
      */
     public function cart_items()
     {
-        $cacheKey = $this->cache_key;
-
-        if (Cache::has($cacheKey))
-        {
-           $cartItems = Cache::get($cacheKey);
-        }
-        else{
-            $cart = $this->get_cart();
-
-            $cartItems = CartItem::with('product')
-                ->where('cart_id', $cart->id)
-                ->get();
-
-            Cache::put($cacheKey, $cartItems, now()->addMinutes(10));
-        }
-
-
-
-        return response()->json(['data' => $cartItems]);
+        $cartItems = $this->get_cart_items();
+        $totalPrice = $this->cart_total($cartItems);
+        return response()->json(['data' => $cartItems, 'totalPrice' => $totalPrice]);
     }
 
     /**
@@ -169,8 +153,15 @@ class CartController extends Controller
         {
             if ($cartItem->product->stock > $cartItem->quantity + $request->quantity)
             {
+                if ($request->quantity < 0 && ($request->quantity * -1) > $cartItem->quantity)
+                    return response()->json(['message' => 'You cannot reduce more than the quantity in your cart!'], 400);
+
                 $cartItem->quantity += $request->quantity;
-                $cartItem->save();
+
+                if ($cartItem->quantity == 0)
+                    $cartItem->delete();
+                else
+                    $cartItem->save();
             }
             else
                 return response()->json(['message' => 'Stock limit exceeded'], 400);
@@ -200,10 +191,46 @@ class CartController extends Controller
         //Delete cache
         Cache::forget($cacheKey);
 
+        $totalPrice = $this->cart_total($cartItems);
+
         return response()->json([
             'message' => 'Card updated successfully',
-            'data' => $cartItems
+            'data' => $cartItems,
+            'totalPrice' => $totalPrice,
         ]);
+    }
+
+    /**
+     * @OA\Delete(
+     *     path="/cart",
+     *     tags={"Cart"},
+     *     summary="Clear all items from the authenticated user's cart",
+     *     description="Deletes all items from the active cart of the currently authenticated user.",
+     *     security={{"sanctum":{}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Cart cleared successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Cart items have been cleared")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthenticated"
+     *     )
+     * )
+     */
+    public function clear()
+    {
+        $cart = $this->get_cart();
+
+        CartItem::where('cart_id', $cart->id)
+            ->delete();
+
+        //Delete cache
+        Cache::forget($this->cache_key);
+
+        return response()->json(['message' => 'Cart items have been cleared']);
     }
 
     private function get_cart()
@@ -214,6 +241,38 @@ class CartController extends Controller
             ->firstOrCreate([
                 'user_id' => $this->user_id,
             ]);
+    }
+
+    public function get_cart_items()
+    {
+        $cacheKey = $this->cache_key;
+
+        if (Cache::has($cacheKey))
+        {
+            $cartItems = Cache::get($cacheKey);
+        }
+        else{
+            $cart = $this->get_cart();
+
+            $cartItems = CartItem::with('product')
+                ->where('cart_id', $cart->id)
+                ->get();
+
+            Cache::put($cacheKey, $cartItems, now()->addMinutes(10));
+        }
+
+        return $cartItems;
+    }
+
+    public function cart_total($cartItems)
+    {
+        $totalPrice = 0;
+
+        foreach ($cartItems as $cartItem) {
+            $totalPrice += ((float)$cartItem->product->price * (int)$cartItem->quantity);
+        }
+
+        return $totalPrice;
     }
 
 }
