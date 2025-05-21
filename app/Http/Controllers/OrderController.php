@@ -12,7 +12,7 @@ class OrderController extends Controller
      * @OA\Get(
      *     path="/order",
      *     tags={"Orders"},
-     *     summary="Get all orders for authenticated user",
+     *     summary="Get a list of orders",
      *     description="Returns a list of orders with related product information. Requires authentication.",
      *     security={{"sanctum":{}}},
      *     @OA\Response(
@@ -57,13 +57,19 @@ class OrderController extends Controller
 
     public function index()
     {
-        $orders = Order::with('product')->orderBy('created_at', 'desc')->get();
+        $orders = Order::with('cartItems.product')
+            ->orderByDesc('created_at')
+            ->when(!auth()->user()->isAdmin(), function ($query) {
+                $query->where('user_id', auth()->id());
+            })
+            ->get();
 
-        if ($orders->isEmpty())
-            return response()->json(['message' => 'No orders have been placed yet.', 'data' => null] );
-
-        return response()->json(['data' => $orders]);
+        return response()->json([
+            'data' => $orders,
+            'message' => $orders->isEmpty() ? 'No orders have been placed yet.' : 'Orders retrieved successfully.',
+        ]);
     }
+
 
     /**
      * @OA\Post(
@@ -117,34 +123,175 @@ class OrderController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * @OA\Get(
+     *     path="/order/{order}",
+     *     tags={"Orders"},
+     *     summary="Get a specific order by ID",
+     *     description="Returns a single order with its cart items and related product details.",
+     *     security={{"sanctum":{}}},
+     *     @OA\Parameter(
+     *         name="order",
+     *         in="path",
+     *         required=true,
+     *         description="ID of the order to retrieve",
+     *         @OA\Schema(type="integer", example=2)
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Order found successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="data", type="object",
+     *                 @OA\Property(property="id", type="integer", example=2),
+     *                 @OA\Property(property="user_id", type="integer", example=1),
+     *                 @OA\Property(property="cart_id", type="integer", example=3),
+     *                 @OA\Property(property="total", type="number", format="float", example=149.99),
+     *                 @OA\Property(property="status", type="string", example="pending"),
+     *                 @OA\Property(property="created_at", type="string", format="date-time", example="2025-05-12T21:00:00Z"),
+     *                 @OA\Property(property="cart_items", type="array",
+     *                     @OA\Items(
+     *                         type="object",
+     *                         @OA\Property(property="id", type="integer", example=1),
+     *                         @OA\Property(property="product_id", type="integer", example=5),
+     *                         @OA\Property(property="quantity", type="integer", example=2),
+     *                         @OA\Property(property="product", type="object",
+     *                             @OA\Property(property="id", type="integer", example=5),
+     *                             @OA\Property(property="title", type="string", example="Bluetooth Kulaklık"),
+     *                             @OA\Property(property="price", type="number", format="float", example=299.99)
+     *                         )
+     *                     )
+     *                 )
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=404,
+     *         description="Order not found"
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthenticated"
+     *     )
+     * )
      */
-    public function show(string $id)
+
+    public function show(Order $order)
     {
-        //
+        $order->load('cartItems.product');
+
+        return response()->json(['data' => $order]);
+    }
+
+
+
+    /**
+     * @OA\Patch(
+     *     path="/order/{order}",
+     *     tags={"Orders"},
+     *     summary="Admin: Update the status of an order",
+     *     description="Allows an admin to update the status of a specific order. Requires authentication and admin role.",
+     *     security={{"sanctum":{}}},
+     *     @OA\Parameter(
+     *         name="order",
+     *         in="path",
+     *         required=true,
+     *         description="ID of the order to update",
+     *         @OA\Schema(type="integer", example=2)
+     *     ),
+     *     @OA\RequestBody(
+     *         required=true,
+     *         @OA\JsonContent(
+     *             required={"status"},
+     *             @OA\Property(
+     *                 property="status",
+     *                 type="string",
+     *                 description="New status of the order",
+     *                 enum={"pending", "processing", "cancelled", "completed"},
+     *                 example="processing"
+     *             )
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Order updated successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Order updated successfully.")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=400,
+     *         description="Validation error",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="The status field is required.")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthenticated"
+     *     ),
+     *     @OA\Response(
+     *         response=403,
+     *         description="Forbidden – Only admins can perform this action"
+     *     ),
+     *     @OA\Response(
+     *         response=500,
+     *         description="Update failed"
+     *     )
+     * )
+     */
+
+
+
+    public function update(Order $order, Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+           'status' => 'required|in:pending,processing,cancelled,completed',
+        ]);
+        if ($validator->fails()) return response()->json(['message' => $validator->errors()->first()], 400);
+
+        $stmt = $order->update([
+           'status' => $request->status,
+        ]);
+
+        return response()->json(['message' => $stmt ? 'Order updated successfully.' : 'Error updating order.'] , $stmt ? 200 : 500);
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * @OA\Patch(
+     *     path="/order/{order}/cancel",
+     *     tags={"Orders"},
+     *     summary="Cancel a specific order",
+     *     description="Marks a given order as cancelled. Only authenticated users can cancel their orders.",
+     *     security={{"sanctum":{}}},
+     *     @OA\Parameter(
+     *         name="order",
+     *         in="path",
+     *         required=true,
+     *         description="ID of the order to cancel",
+     *         @OA\Schema(type="integer", example=3)
+     *     ),
+     *     @OA\Response(
+     *         response=200,
+     *         description="Order cancelled successfully",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Order cancelled successfully.")
+     *         )
+     *     ),
+     *     @OA\Response(
+     *         response=404,
+     *         description="Order not found"
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthenticated"
+     *     )
+     * )
      */
-    public function edit(string $id)
-    {
-        //
-    }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    public function cancel(Order $order)
     {
-        //
-    }
+        $order->status = 'cancelled';
+        $order->save();
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        return response()->json(['message' => 'Order cancelled successfully.']);
     }
 }

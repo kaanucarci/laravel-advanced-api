@@ -445,7 +445,7 @@
                 "tags": [
                     "Orders"
                 ],
-                "summary": "Get all orders for authenticated user",
+                "summary": "Get a list of orders",
                 "description": "Returns a list of orders with related product information. Requires authentication.",
                 "operationId": "0856cea0d3370eecc583e7f77b8b3495",
                 "responses": {
@@ -568,6 +568,267 @@
                                 }
                             }
                         }
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/order/{order}": {
+            "get": {
+                "tags": [
+                    "Orders"
+                ],
+                "summary": "Get a specific order by ID",
+                "description": "Returns a single order with its cart items and related product details.",
+                "operationId": "70ac01d0231a7ba18991bc0fed8f1ae5",
+                "parameters": [
+                    {
+                        "name": "order",
+                        "in": "path",
+                        "description": "ID of the order to retrieve",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "example": 2
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Order found successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer",
+                                                    "example": 2
+                                                },
+                                                "user_id": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                },
+                                                "cart_id": {
+                                                    "type": "integer",
+                                                    "example": 3
+                                                },
+                                                "total": {
+                                                    "type": "number",
+                                                    "format": "float",
+                                                    "example": 149.99
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "example": "pending"
+                                                },
+                                                "created_at": {
+                                                    "type": "string",
+                                                    "format": "date-time",
+                                                    "example": "2025-05-12T21:00:00Z"
+                                                },
+                                                "cart_items": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer",
+                                                                "example": 1
+                                                            },
+                                                            "product_id": {
+                                                                "type": "integer",
+                                                                "example": 5
+                                                            },
+                                                            "quantity": {
+                                                                "type": "integer",
+                                                                "example": 2
+                                                            },
+                                                            "product": {
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "integer",
+                                                                        "example": 5
+                                                                    },
+                                                                    "title": {
+                                                                        "type": "string",
+                                                                        "example": "Bluetooth Kulaklık"
+                                                                    },
+                                                                    "price": {
+                                                                        "type": "number",
+                                                                        "format": "float",
+                                                                        "example": 299.99
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    }
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Order not found"
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            },
+            "patch": {
+                "tags": [
+                    "Orders"
+                ],
+                "summary": "Admin: Update the status of an order",
+                "description": "Allows an admin to update the status of a specific order. Requires authentication and admin role.",
+                "operationId": "0f15c5b013e60da8371d793bf2710874",
+                "parameters": [
+                    {
+                        "name": "order",
+                        "in": "path",
+                        "description": "ID of the order to update",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "example": 2
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "status"
+                                ],
+                                "properties": {
+                                    "status": {
+                                        "description": "New status of the order",
+                                        "type": "string",
+                                        "enum": [
+                                            "pending",
+                                            "processing",
+                                            "cancelled",
+                                            "completed"
+                                        ],
+                                        "example": "processing"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Order updated successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Order updated successfully."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "The status field is required."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthenticated"
+                    },
+                    "403": {
+                        "description": "Forbidden – Only admins can perform this action"
+                    },
+                    "500": {
+                        "description": "Update failed"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/order/{order}/cancel": {
+            "patch": {
+                "tags": [
+                    "Orders"
+                ],
+                "summary": "Cancel a specific order",
+                "description": "Marks a given order as cancelled. Only authenticated users can cancel their orders.",
+                "operationId": "76f679cbc8a9cb1a6176ec39742dd725",
+                "parameters": [
+                    {
+                        "name": "order",
+                        "in": "path",
+                        "description": "ID of the order to cancel",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "example": 3
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Order cancelled successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Order cancelled successfully."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Order not found"
                     },
                     "401": {
                         "description": "Unauthenticated"
