@@ -26,8 +26,6 @@ This is a modern, scalable RESTful API built using **Laravel 12**, designed as a
     - Request validation using `FormRequest`
     - Unified and structured error responses
 
-- 🔁 **API Versioning**
-    - Structured under `/api/v1/` for maintainability
 
 ---
 
