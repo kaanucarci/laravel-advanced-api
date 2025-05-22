@@ -12,8 +12,13 @@
         "php": "^8.2",
         "darkaonline/l5-swagger": "^9.0",
         "laravel/framework": "^12.0",
+        "laravel/octane": "^2.9",
         "laravel/sanctum": "^4.1",
         "laravel/tinker": "^2.10.1",
+        "nyholm/psr7": "^1.8",
+        "spiral/roadrunner": "^2025.1",
+        "spiral/roadrunner-cli": "^2.6.0",
+        "spiral/roadrunner-http": "^3.3.0",
         "zircote/swagger-php": "^5.1"
     },
     "require-dev": {
