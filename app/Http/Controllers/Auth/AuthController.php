@@ -4,173 +4,240 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
+    private const TOKEN_NAME = 'auth_token';
+    private const TOKEN_EXPIRATION_HOURS = 2;
+    
     /**
      * @OA\Post(
      *     path="/user/register",
      *     tags={"Authentication"},
      *     summary="Register a new user",
+     *     operationId="registerUser",
      *     @OA\RequestBody(
      *         required=true,
+     *         description="User registration data",
      *         @OA\JsonContent(
      *             required={"name", "email", "password", "password_confirmation"},
-     *             @OA\Property(property="name", type="string", example="Kaan Uçarcı"),
-     *             @OA\Property(property="email", type="string", format="email", example="kaan@example.com"),
-     *             @OA\Property(property="password", type="string", format="password", example="secret123"),
-     *             @OA\Property(property="password_confirmation", type="string", format="password", example="secret123")
+     *             @OA\Property(property="name", type="string", maxLength=255, example="Kaan Uçarcı"),
+     *             @OA\Property(property="email", type="string", format="email", maxLength=255, example="kaan@example.com"),
+     *             @OA\Property(property="password", type="string", format="password", minLength=8, example="Secret123!"),
+     *             @OA\Property(property="password_confirmation", type="string", format="password", example="Secret123!")
      *         )
      *     ),
      *     @OA\Response(
-     *         response=200,
+     *         response=201,
      *         description="User created successfully",
-     *         @OA\JsonContent(@OA\Property(property="message", type="string", example="User created successfully"))
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="User created successfully"),
+     *             @OA\Property(property="user", ref="#/components/schemas/User")
+     *         )
      *     ),
      *     @OA\Response(
-     *         response=400,
-     *         description="Validation error"
+     *         response=422,
+     *         description="Validation errors",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="The given data was invalid."),
+     *             @OA\Property(property="errors", type="object")
+     *         )
      *     )
      * )
      */
-
-    public function register(Request $request)
+    public function register(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:6|confirmed',
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'password' => [
+                'required',
+                'string',
+                'confirmed',
+                Password::min(8)
+                    ->mixedCase()
+                    ->numbers()
+                    ->symbols()
+                    ->uncompromised(),
+            ],
         ]);
 
         if ($validator->fails()) {
-            $response = [
-                'message' => $validator->errors()->first(),
-            ];
-            return response()->json($response, 400);
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
         }
 
-        User::create([
+        $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => password_hash($request->password, PASSWORD_BCRYPT),
+            'password' => Hash::make($request->password),
+            'email_verification_token' => Str::random(60),
         ]);
 
-        return response()->json(['message' => 'User created successfully',], 200);
+        // در اینجا می‌توانید ایمیل تایید را ارسال کنید
+        // $user->sendEmailVerificationNotification();
+
+        return response()->json([
+            'message' => 'User created successfully',
+            'user' => $user->makeHidden(['password', 'email_verification_token'])
+        ], 201);
     }
+
     /**
      * @OA\Post(
      *     path="/user/login",
      *     tags={"Authentication"},
-     *     summary="Login a user and get access token",
+     *     summary="Authenticate user and get access token",
+     *     operationId="loginUser",
      *     @OA\RequestBody(
      *         required=true,
+     *         description="User credentials",
      *         @OA\JsonContent(
      *             required={"email", "password"},
      *             @OA\Property(property="email", type="string", format="email", example="kaan@example.com"),
-     *             @OA\Property(property="password", type="string", format="password", example="secret123")
+     *             @OA\Property(property="password", type="string", format="password", example="Secret123!")
      *         )
      *     ),
      *     @OA\Response(
      *         response=200,
-     *         description="Logged in successfully",
+     *         description="Authentication successful",
      *         @OA\JsonContent(
      *             @OA\Property(property="message", type="string", example="Logged in successfully"),
-     *             @OA\Property(property="token", type="string", example="Bearer token..."),
-     *             @OA\Property(property="user", type="object")
+     *             @OA\Property(property="token", type="string", example="1|AbCdEfGhIjKlMnOpQrStUvWxYz"),
+     *             @OA\Property(property="token_type", type="string", example="Bearer"),
+     *             @OA\Property(property="expires_in", type="integer", example=7200),
+     *             @OA\Property(property="user", ref="#/components/schemas/User")
      *         )
      *     ),
      *     @OA\Response(
-     *         response=400,
-     *         description="Wrong password or validation error"
+     *         response=401,
+     *         description="Invalid credentials",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Invalid credentials")
+     *         )
      *     ),
      *     @OA\Response(
-     *         response=404,
-     *         description="User not found"
+     *         response=403,
+     *         description="Email not verified",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Please verify your email address")
+     *         )
      *     )
      * )
      */
-
-    public function login(Request $request)
+    public function login(Request $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'email' => 'required|string|email|max:255',
-            'password' => 'required|string|min:6',
+        $credentials = $request->validate([
+            'email' => ['required', 'email'],
+            'password' => ['required', 'string'],
         ]);
 
-        if ($validator->fails())
-            return response()->json(['message' => $validator->errors()->first()], 400);
+        $user = User::where('email', $credentials['email'])->first();
 
-
-        $user = User::where('email', $request->email);
-
-        if ($user->exists())
-        {
-            if (password_verify($request->password, $user->first()->password))
-            {
-                $credentials = $request->only('email', 'password');
-                $tokenInfo = $user->first()->createToken(implode(',', $credentials));
-                $tokenInfo->accessToken->expires_at = now()->addHours(2);
-                $tokenInfo->accessToken->save();
-
-                $token = $tokenInfo->plainTextToken;
-
-                return response()->json([
-                    'message' => 'Logged in successfully',
-                    'token' => $token,
-                    'user' => $user->first(),
-                ], 200);
-            }
-            else
-                return response()->json(['message' => 'Wrong password'], 400);
+        if (!$user || !Hash::check($credentials['password'], $user->password)) {
+            return response()->json([
+                'message' => 'Invalid credentials'
+            ], 401);
         }
-        else
-            return response()->json(['message' => 'User not found'], 404);
 
+        // اگر ایمیل تایید شده باشد
+        // if (!$user->hasVerifiedEmail()) {
+        //     return response()->json([
+        //         'message' => 'Please verify your email address'
+        //     ], 403);
+        // }
+
+        $token = $user->createToken(
+            self::TOKEN_NAME,
+            ['*'],
+            now()->addHours(self::TOKEN_EXPIRATION_HOURS)
+        )->plainTextToken;
+
+        return response()->json([
+            'message' => 'Logged in successfully',
+            'token' => $token,
+            'token_type' => 'Bearer',
+            'expires_in' => self::TOKEN_EXPIRATION_HOURS * 3600,
+            'user' => $user->makeHidden(['password', 'email_verification_token'])
+        ]);
     }
 
     /**
      * @OA\Get(
      *     path="/user/me",
      *     tags={"Authentication"},
-     *     summary="Get the logged-in user's info",
+     *     summary="Get authenticated user details",
+     *     operationId="getAuthenticatedUser",
      *     security={{"sanctum":{}}},
      *     @OA\Response(
      *         response=200,
-     *         description="Logged user information",
+     *         description="User details retrieved successfully",
      *         @OA\JsonContent(
-     *             @OA\Property(property="message", type="string", example="Logged User Information"),
-     *             @OA\Property(property="user", type="object")
+     *             @OA\Property(property="user", ref="#/components/schemas/User")
      *         )
      *     ),
-     *
      *     @OA\Response(
      *         response=401,
-     *         description="Unauthenticated"
+     *         description="Unauthenticated",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="message", type="string", example="Unauthenticated")
+     *         )
      *     )
      * )
      */
-
-    public function me(Request $request)
+    public function me(Request $request): JsonResponse
     {
         return response()->json([
-            'message' => 'Logged User Information',
-            'user' => $request->user()
-        ], 200);
+            'user' => $request->user()->makeHidden(['password', 'email_verification_token'])
+        ]);
     }
 
     /**
      * @OA\Post(
      *     path="/user/logout",
      *     tags={"Authentication"},
-     *     summary="Logout and revoke user tokens",
+     *     summary="Logout user and revoke tokens",
+     *     operationId="logoutUser",
+     *     security={{"sanctum":{}}},
+     *     @OA\Response(
+     *         response=204,
+     *         description="Successfully logged out",
+     *     ),
+     *     @OA\Response(
+     *         response=401,
+     *         description="Unauthenticated"
+     *     )
+     * )
+     */
+    public function logout(): JsonResponse
+    {
+        auth()->user()->tokens()->delete();
+
+        return response()->json(null, 204);
+    }
+
+    /**
+     * @OA\Post(
+     *     path="/user/refresh-token",
+     *     tags={"Authentication"},
+     *     summary="Refresh authentication token",
+     *     operationId="refreshToken",
      *     security={{"sanctum":{}}},
      *     @OA\Response(
      *         response=200,
-     *         description="User logged out",
+     *         description="Token refreshed successfully",
      *         @OA\JsonContent(
-     *             @OA\Property(property="message", type="string", example="Logged Out")
+     *             @OA\Property(property="token", type="string", example="2|AbCdEfGhIjKlMnOpQrStUvWxYz"),
+     *             @OA\Property(property="token_type", type="string", example="Bearer"),
+     *             @OA\Property(property="expires_in", type="integer", example=7200)
      *         )
      *     ),
      *     @OA\Response(
@@ -179,13 +246,21 @@ class AuthController extends Controller
      *     )
      * )
      */
-
-    public function logout()
+    public function refreshToken(): JsonResponse
     {
-        request()->user()->tokens()->delete();
+        $user = auth()->user();
+        $user->tokens()->delete();
+
+        $token = $user->createToken(
+            self::TOKEN_NAME,
+            ['*'],
+            now()->addHours(self::TOKEN_EXPIRATION_HOURS)
+        )->plainTextToken;
 
         return response()->json([
-            'message' => 'Logged Out',
-        ], 200);
+            'token' => $token,
+            'token_type' => 'Bearer',
+            'expires_in' => self::TOKEN_EXPIRATION_HOURS * 3600
+        ]);
     }
 }
